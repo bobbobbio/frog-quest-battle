@@ -1,0 +1,38 @@
+[package]
+name = "frog_quest_battle"
+version = "0.1.0"
+authors = ["Remi Bernotavicius <remi@abort.cc>"]
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+console_error_panic_hook = "*"
+euclid = "*"
+js-sys = "*"
+log = "*"
+wasm-bindgen = "*"
+wasm-logger = "*"
+
+[dependencies.web-sys]
+version = "*"
+features = [
+  "Blob",
+  "Document",
+  "Element",
+  "Event",
+  "EventTarget",
+  "HtmlCanvasElement",
+  "HtmlInputElement",
+  "KeyboardEvent",
+  "Performance",
+  "WebGl2RenderingContext",
+  "WebGlBuffer",
+  "WebGlProgram",
+  "WebGlShader",
+  "WebGlTexture",
+  "WebGlUniformLocation",
+  "WebGlVertexArrayObject",
+  "Window",
+]
