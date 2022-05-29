@@ -8,6 +8,7 @@ use wasm_bindgen::JsCast;
 
 mod program;
 mod renderer;
+mod rpc;
 
 fn window() -> web_sys::Window {
     web_sys::window().expect("no global `window` exists")
@@ -85,7 +86,7 @@ fn schedule<F: FnMut() -> i32 + 'static>(mut body: F, from_now: i32) {
 }
 
 #[wasm_bindgen(start)]
-pub fn start() -> Result<(), JsValue> {
+pub async fn start() -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
     wasm_logger::init(wasm_logger::Config::default());
 
@@ -102,6 +103,8 @@ pub fn start() -> Result<(), JsValue> {
     set_up_input(program.clone());
 
     schedule(move || program.borrow_mut().tick(), 0);
+
+    rpc::start().await?;
 
     Ok(())
 }

@@ -13,6 +13,7 @@ euclid = "*"
 js-sys = "*"
 log = "*"
 wasm-bindgen = "*"
+wasm-bindgen-futures = "*"
 wasm-logger = "*"
 
 [dependencies.web-sys]
@@ -26,7 +27,16 @@ features = [
   "HtmlCanvasElement",
   "HtmlInputElement",
   "KeyboardEvent",
+  "MessageEvent",
   "Performance",
+  "RtcDataChannel",
+  "RtcDataChannelEvent",
+  "RtcIceCandidate",
+  "RtcPeerConnection",
+  "RtcPeerConnectionIceEvent",
+  "RtcSdpType",
+  "RtcSessionDescriptionInit",
+  "RtcSignalingState",
   "WebGl2RenderingContext",
   "WebGlBuffer",
   "WebGlProgram",
