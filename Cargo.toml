@@ -8,6 +8,8 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
+bevy = "*"
+bmp = "*"
 console_error_panic_hook = "*"
 euclid = "*"
 js-sys = "*"
@@ -28,21 +30,5 @@ features = [
   "HtmlInputElement",
   "KeyboardEvent",
   "MessageEvent",
-  "Performance",
-  "RtcDataChannel",
-  "RtcDataChannelEvent",
-  "RtcIceCandidate",
-  "RtcPeerConnection",
-  "RtcPeerConnectionIceEvent",
-  "RtcSdpType",
-  "RtcSessionDescriptionInit",
-  "RtcSignalingState",
-  "WebGl2RenderingContext",
-  "WebGlBuffer",
-  "WebGlProgram",
-  "WebGlShader",
-  "WebGlTexture",
-  "WebGlUniformLocation",
-  "WebGlVertexArrayObject",
   "Window",
 ]

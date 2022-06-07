@@ -70,6 +70,9 @@ pub struct CanvasRenderer {
     buffer: Vec<u8>,
 }
 
+unsafe impl Send for CanvasRenderer {}
+unsafe impl Sync for CanvasRenderer {}
+
 pub const RENDER_RECT: Rect<i32, Pixels> = Rect {
     origin: Point2D::<i32, Pixels>::new(0, 0),
     size: Size2D::<i32, Pixels>::new(315, 143),
