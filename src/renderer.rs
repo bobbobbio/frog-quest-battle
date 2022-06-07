@@ -70,9 +70,6 @@ pub struct CanvasRenderer {
     buffer: Vec<u8>,
 }
 
-unsafe impl Send for CanvasRenderer {}
-unsafe impl Sync for CanvasRenderer {}
-
 pub const RENDER_RECT: Rect<i32, Pixels> = Rect {
     origin: Point2D::<i32, Pixels>::new(0, 0),
     size: Size2D::<i32, Pixels>::new(315, 143),
@@ -270,8 +267,9 @@ pub struct Color {
 const BYTES_PER_PIXEL: Scale<usize, Pixels, Bytes> = Scale::new(4);
 
 impl CanvasRenderer {
-    pub fn new(canvas: &web_sys::HtmlCanvasElement) -> Self {
-        let context = get_rendering_context(canvas);
+    pub fn new() -> Self {
+        let canvas = super::canvas();
+        let context = get_rendering_context(&canvas);
         let texture = context.create_texture().unwrap();
         set_up_context(&context, &texture);
         Self {
@@ -318,5 +316,11 @@ impl CanvasRenderer {
                 Some(&self.buffer[..]),
             )
             .unwrap();
+    }
+}
+
+impl Default for CanvasRenderer {
+    fn default() -> Self {
+        Self::new()
     }
 }
