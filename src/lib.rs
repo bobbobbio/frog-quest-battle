@@ -2,8 +2,13 @@
 
 use bevy::app::ScheduleRunnerSettings;
 use bevy::prelude::*;
+use bevy::reflect::impl_reflect_value;
+use bevy::tasks::IoTaskPool;
 use bevy::utils::Duration;
+use bevy_ggrs::*;
 use euclid::{Point2D, Rect, Size2D, Vector2D};
+use ggrs::PlayerType;
+use matchbox_socket::WebRtcNonBlockingSocket;
 use renderer::{CanvasRenderer, Color, Pixels, RENDER_RECT};
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
@@ -13,6 +18,8 @@ use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast as _;
+
+const INPUT_SIZE: usize = std::mem::size_of::<u8>();
 
 mod renderer;
 
@@ -30,19 +37,25 @@ fn canvas() -> web_sys::HtmlCanvasElement {
 }
 
 #[derive(Component)]
-struct Sprite;
+struct Player {
+    handle: usize,
+}
 
-#[derive(Component)]
+#[derive(Component, Clone, Default)]
 struct Bounds(Rect<i32, Pixels>);
 
-#[derive(Component)]
+impl_reflect_value!(Bounds);
+
+#[derive(Component, Clone, Default)]
 struct Velocity(Vector2D<i32, Pixels>);
+
+impl_reflect_value!(Velocity);
 
 #[derive(Component)]
 struct ColorComponent(Color);
 
 impl ColorComponent {
-    fn random(h: &impl Hash) -> Self {
+    fn arbitrary(h: &impl Hash) -> Self {
         let mut s = DefaultHasher::new();
         h.hash(&mut s);
         let [r, g, b, ..] = s.finish().to_le_bytes();
@@ -50,43 +63,35 @@ impl ColorComponent {
     }
 }
 
-fn add_boxes(mut commands: Commands) {
+fn spawn_players(mut commands: Commands, mut rip: ResMut<RollbackIdProvider>) {
     commands
         .spawn()
-        .insert(Sprite)
-        .insert(Bounds(Rect::new(Point2D::new(0, 0), Size2D::new(10, 10))))
-        .insert(Velocity(Vector2D::new(3, 3)))
-        .insert(ColorComponent::random(&0));
-}
+        .insert(Player { handle: 0 })
+        .insert(Bounds(Rect::new(Point2D::new(10, 10), Size2D::new(10, 10))))
+        .insert(Velocity(Vector2D::zero()))
+        .insert(ColorComponent::arbitrary(&0))
+        .insert(Rollback::new(rip.next_id()));
 
-fn physics(mut query: Query<(&mut Bounds, &mut Velocity), With<Sprite>>) {
-    for (mut b, mut v) in query.iter_mut() {
-        b.0.origin += v.0;
-
-        if b.0.origin.y <= 0 || b.0.origin.y + b.0.size.height > RENDER_RECT.size.height {
-            v.0.y *= -1
-        }
-
-        if !RENDER_RECT.intersects(&b.0) {
-            b.0.origin.x = -b.0.size.width;
-        }
-    }
+    commands
+        .spawn()
+        .insert(Player { handle: 1 })
+        .insert(Bounds(Rect::new(Point2D::new(30, 10), Size2D::new(10, 10))))
+        .insert(Velocity(Vector2D::zero()))
+        .insert(ColorComponent::arbitrary(&1))
+        .insert(Rollback::new(rip.next_id()));
 }
 
 fn draw(
     mut renderer: NonSendMut<CanvasRenderer>,
     render_flag: NonSend<RenderFlag>,
-    mut frame_counter: ResMut<FrameCounter>,
-    query: Query<(&Bounds, &ColorComponent), With<Sprite>>,
+    query: Query<(&Bounds, &ColorComponent), With<Player>>,
 ) {
-    frame_counter.incr();
-
     if !render_flag.should_render() {
         return;
     }
 
-    for y in 0..renderer::RENDER_RECT.size.height as i32 {
-        for x in 0..renderer::RENDER_RECT.size.width as i32 {
+    for y in 0..RENDER_RECT.size.height as i32 {
+        for x in 0..RENDER_RECT.size.width as i32 {
             let p = Point2D::new(x, y);
             let color = if let Some(c) = query.iter().find_map(|(o, c)| o.0.contains(p).then(|| c))
             {
@@ -146,25 +151,73 @@ impl Default for RenderFlag {
     }
 }
 
-fn handle_input(world: &mut World) {
-    let mut stream = world.non_send_resource_mut::<InputStream>();
-    let mut events = vec![];
-    while let Some(e) = stream.get() {
-        events.push(e);
-    }
+const INPUT_UP: u8 = 1 << 0;
+const INPUT_DOWN: u8 = 1 << 1;
+const INPUT_LEFT: u8 = 1 << 2;
+const INPUT_RIGHT: u8 = 1 << 3;
 
-    for e in events {
-        match e {
-            KeyboardEvent::Down(_) => {
-                let color = ColorComponent::random(&*world.resource::<FrameCounter>());
-                world
-                    .spawn()
-                    .insert(Sprite)
-                    .insert(Bounds(Rect::new(Point2D::new(0, 0), Size2D::new(10, 10))))
-                    .insert(Velocity(Vector2D::new(3, 3)))
-                    .insert(color);
+fn input(_: In<ggrs::PlayerHandle>, mut input_stream: NonSendMut<InputStream>) -> Vec<u8> {
+    let mut input = 0u8;
+
+    while let Some(i) = input_stream.get() {
+        match i {
+            KeyboardEvent::Down(e) if e.code() == "ArrowUp" => {
+                input |= INPUT_UP;
+            }
+            KeyboardEvent::Down(e) if e.code() == "ArrowDown" => {
+                input |= INPUT_DOWN;
+            }
+            KeyboardEvent::Down(e) if e.code() == "ArrowLeft" => {
+                input |= INPUT_LEFT;
+            }
+            KeyboardEvent::Down(e) if e.code() == "ArrowRight" => {
+                input |= INPUT_RIGHT;
             }
             _ => {}
+        }
+    }
+
+    vec![input]
+}
+
+fn move_player(
+    inputs: Res<Vec<ggrs::GameInput>>,
+    mut player_query: Query<(&mut Bounds, &mut Velocity, &Player)>,
+) {
+    for (_, mut velocity, player) in player_query.iter_mut() {
+        let mut direction = Vector2D::new(0, 0);
+
+        let input = inputs[player.handle].buffer[0];
+
+        if input & INPUT_UP != 0 {
+            direction.y -= 1;
+        }
+        if input & INPUT_DOWN != 0 {
+            direction.y += 1;
+        }
+        if input & INPUT_RIGHT != 0 {
+            direction.x += 1;
+        }
+        if input & INPUT_LEFT != 0 {
+            direction.x -= 1;
+        }
+
+        velocity.0 += direction;
+    }
+
+    physics(player_query);
+}
+
+fn physics(mut query: Query<(&mut Bounds, &mut Velocity, &Player)>) {
+    for (mut b, mut v, _) in query.iter_mut() {
+        b.0.origin += v.0;
+
+        if b.0.origin.y <= 0 || b.0.origin.y + b.0.size.height > RENDER_RECT.size.height {
+            v.0.y *= -1
+        }
+
+        if !RENDER_RECT.intersects(&b.0) {
+            b.0.origin.x = -b.0.size.width;
         }
     }
 }
@@ -217,13 +270,59 @@ impl Default for InputStream {
     }
 }
 
-#[derive(Default, Hash)]
-struct FrameCounter(u64);
+fn start_matchbox_socket(mut commands: Commands, task_pool: Res<IoTaskPool>) {
+    let room_url = "ws://orange:3536/next_2";
+    log::info!("connecting to matchbox server: {:?}", room_url);
+    let (socket, message_loop) = WebRtcNonBlockingSocket::new(room_url);
 
-impl FrameCounter {
-    fn incr(&mut self) {
-        self.0 += 1;
+    // The message loop needs to be awaited, or nothing will happen.
+    // We do this here using bevy's task system.
+    task_pool.spawn(message_loop).detach();
+
+    commands.insert_resource(Some(socket));
+}
+
+fn wait_for_players(mut commands: Commands, mut socket: ResMut<Option<WebRtcNonBlockingSocket>>) {
+    let socket = socket.as_mut();
+
+    // If there is no socket we've already started the game
+    if socket.is_none() {
+        return;
     }
+
+    // Check for new connections
+    socket.as_mut().unwrap().accept_new_connections();
+    let players = socket.as_ref().unwrap().players();
+
+    let num_players = 2;
+    if players.len() < num_players {
+        return; // wait for more players
+    }
+
+    log::info!("All peers have joined, going in-game");
+
+    // consume the socket (currently required because GGRS takes ownership of its socket)
+    let socket = socket.take().unwrap();
+
+    let max_prediction = 12;
+
+    // create a GGRS P2P session
+    let mut p2p_session =
+        ggrs::P2PSession::new_with_socket(num_players as u32, INPUT_SIZE, max_prediction, socket);
+
+    for (i, player) in players.into_iter().enumerate() {
+        p2p_session
+            .add_player(player, i)
+            .expect("failed to add player");
+
+        if player == PlayerType::Local {
+            // set input delay for the local player
+            p2p_session.set_frame_delay(2, i).unwrap();
+        }
+    }
+
+    // start the GGRS session
+    commands.start_p2p_session(p2p_session);
 }
 
 #[wasm_bindgen(start)]
@@ -234,20 +333,27 @@ pub fn start() {
     log::info!("Frog Quest Battle Starting");
 
     let canvas = canvas();
-    let canvas_rect = renderer::RENDER_RECT * renderer::PIXEL_SCALE;
+    let canvas_rect = RENDER_RECT * renderer::PIXEL_SCALE;
     canvas.set_width(canvas_rect.size.width as u32);
     canvas.set_height(canvas_rect.size.height as u32);
 
     App::new()
-        .init_resource::<FrameCounter>()
         .init_non_send_resource::<RenderFlag>()
         .init_non_send_resource::<CanvasRenderer>()
         .init_non_send_resource::<InputStream>()
         .insert_resource(ScheduleRunnerSettings::run_loop(Duration::from_millis(16)))
         .add_plugins(MinimalPlugins)
-        .add_startup_system(add_boxes)
-        .add_system(physics)
+        .add_plugin(GGRSPlugin)
+        .with_rollback_schedule(Schedule::default().with_stage(
+            "ROLLBACK_STAGE",
+            SystemStage::single_threaded().with_system(move_player),
+        ))
+        .register_rollback_type::<Bounds>()
+        .register_rollback_type::<Velocity>()
+        .with_input_system(input)
+        .add_startup_system(start_matchbox_socket)
+        .add_startup_system(spawn_players)
+        .add_system(wait_for_players)
         .add_system(draw)
-        .add_system(handle_input.exclusive_system())
         .run();
 }
