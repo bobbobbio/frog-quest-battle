@@ -6,6 +6,7 @@ use bevy::reflect::impl_reflect_value;
 use bevy::tasks::IoTaskPool;
 use bevy::utils::Duration;
 use bevy_ggrs::*;
+use enumset::{EnumSet, EnumSetType};
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use ggrs::PlayerType;
 use matchbox_socket::WebRtcNonBlockingSocket;
@@ -18,8 +19,6 @@ use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast as _;
-
-const INPUT_SIZE: usize = std::mem::size_of::<u8>();
 
 mod renderer;
 
@@ -151,33 +150,36 @@ impl Default for RenderFlag {
     }
 }
 
-const INPUT_UP: u8 = 1 << 0;
-const INPUT_DOWN: u8 = 1 << 1;
-const INPUT_LEFT: u8 = 1 << 2;
-const INPUT_RIGHT: u8 = 1 << 3;
+#[derive(EnumSetType)]
+enum Input {
+    Up,
+    Down,
+    Left,
+    Right,
+}
 
 fn input(_: In<ggrs::PlayerHandle>, mut input_stream: NonSendMut<InputStream>) -> Vec<u8> {
-    let mut input = 0u8;
+    let mut set = EnumSet::new();
 
     while let Some(i) = input_stream.get() {
         match i {
             KeyboardEvent::Down(e) if e.code() == "ArrowUp" => {
-                input |= INPUT_UP;
+                set.insert(Input::Up);
             }
             KeyboardEvent::Down(e) if e.code() == "ArrowDown" => {
-                input |= INPUT_DOWN;
+                set.insert(Input::Down);
             }
             KeyboardEvent::Down(e) if e.code() == "ArrowLeft" => {
-                input |= INPUT_LEFT;
+                set.insert(Input::Left);
             }
             KeyboardEvent::Down(e) if e.code() == "ArrowRight" => {
-                input |= INPUT_RIGHT;
+                set.insert(Input::Right);
             }
             _ => {}
         }
     }
 
-    vec![input]
+    vec![set.as_u8()]
 }
 
 fn move_player(
@@ -187,19 +189,19 @@ fn move_player(
     for (_, mut velocity, player) in player_query.iter_mut() {
         let mut direction = Vector2D::new(0, 0);
 
-        let input = inputs[player.handle].buffer[0];
+        let input = EnumSet::from_u8(inputs[player.handle].buffer[0]);
 
-        if input & INPUT_UP != 0 {
+        if input.contains(Input::Up) {
             direction.y -= 1;
         }
-        if input & INPUT_DOWN != 0 {
+        if input.contains(Input::Down) {
             direction.y += 1;
         }
-        if input & INPUT_RIGHT != 0 {
-            direction.x += 1;
-        }
-        if input & INPUT_LEFT != 0 {
+        if input.contains(Input::Left) {
             direction.x -= 1;
+        }
+        if input.contains(Input::Right) {
+            direction.x += 1;
         }
 
         velocity.0 += direction;
@@ -307,8 +309,12 @@ fn wait_for_players(mut commands: Commands, mut socket: ResMut<Option<WebRtcNonB
     let max_prediction = 12;
 
     // create a GGRS P2P session
-    let mut p2p_session =
-        ggrs::P2PSession::new_with_socket(num_players as u32, INPUT_SIZE, max_prediction, socket);
+    let mut p2p_session = ggrs::P2PSession::new_with_socket(
+        num_players as u32,
+        mem::size_of::<u8>(),
+        max_prediction,
+        socket,
+    );
 
     for (i, player) in players.into_iter().enumerate() {
         p2p_session

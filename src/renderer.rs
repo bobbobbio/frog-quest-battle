@@ -1,7 +1,6 @@
 // copyright 2022 Remi Bernotavicius
 
 use euclid::{Length, Point2D, Rect, Scale, Size2D};
-use std::convert::TryInto;
 use wasm_bindgen::JsCast;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlTexture};
 
