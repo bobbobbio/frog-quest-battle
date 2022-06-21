@@ -1431,6 +1431,7 @@ dependencies = [
  "js-sys",
  "log",
  "matchbox_socket",
+ "num-traits",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-logger",

@@ -62,7 +62,11 @@ impl RenderFlag {
     }
 
     fn should_render(&self) -> bool {
-        mem::replace(&mut *self.0.borrow_mut(), false)
+        *self.0.borrow()
+    }
+
+    fn reset(&self) {
+        *self.0.borrow_mut() = false;
     }
 }
 
@@ -104,16 +108,18 @@ fn input(_: In<ggrs::PlayerHandle>, mut input_stream: NonSendMut<InputStream>) -
     vec![set.as_u8()]
 }
 
-fn move_players(
+fn move_sprites(
     inputs: Res<Vec<ggrs::GameInput>>,
-    mut player_query: Query<(&mut game::Bounds, &mut game::Velocity, &game::Player)>,
+    mut object_query: Query<(&mut game::Bounds, &mut game::Velocity, &game::Sprite)>,
 ) {
-    for (_, mut velocity, player) in player_query.iter_mut() {
-        let input = EnumSet::from_u8(inputs[player.handle].buffer[0]);
-        game::move_player(input, player, &mut velocity);
+    for (_, mut velocity, sprite) in object_query.iter_mut() {
+        if let game::Sprite::Player(player) = sprite {
+            let input = EnumSet::from_u8(inputs[player.handle].buffer[0]);
+            game::move_player(input, player, &mut velocity);
+        }
     }
 
-    game::physics(player_query);
+    game::physics(object_query);
 }
 
 enum KeyboardEvent {
@@ -244,14 +250,11 @@ pub fn start() {
         .add_plugin(GGRSPlugin)
         .with_rollback_schedule(Schedule::default().with_stage(
             "ROLLBACK_STAGE",
-            SystemStage::single_threaded().with_system(move_players),
+            SystemStage::single_threaded().with_system(move_sprites),
         ))
-        .register_rollback_type::<game::Bounds>()
-        .register_rollback_type::<game::Velocity>()
+        .add_plugin(game::Plugin)
         .with_input_system(input)
         .add_startup_system(start_matchbox_socket)
-        .add_startup_system(game::spawn_players)
         .add_system(wait_for_players)
-        .add_system(game::draw)
         .run();
 }

@@ -262,6 +262,8 @@ pub struct Color {
     pub b: u8,
 }
 
+pub const BLACK: Color = Color { r: 0, g: 0, b: 0 };
+
 /// red, green, blue, and alpha
 const BYTES_PER_PIXEL: Scale<usize, Pixels, Bytes> = Scale::new(4);
 

@@ -18,6 +18,7 @@ ggrs = "0.8"
 js-sys = "*"
 log = "*"
 matchbox_socket = { version = "0.3", features = ["ggrs-socket"] }
+num-traits = "*"
 wasm-bindgen = "*"
 wasm-bindgen-futures = "*"
 wasm-logger = "*"
