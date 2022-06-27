@@ -87,7 +87,18 @@ impl bevy::app::Plugin for Plugin {
             .register_rollback_type::<Bounds>()
             .register_rollback_type::<Velocity>()
             .add_startup_system(spawn_sprites)
-            .add_system(draw);
+            .add_system(draw_background.label("draw_background"))
+            .add_system(
+                draw_sprites::<TextBox>
+                    .after("draw_background")
+                    .label("draw_sprites"),
+            )
+            .add_system(
+                draw_sprites::<Player>
+                    .after("draw_background")
+                    .label("draw_sprites"),
+            )
+            .add_system(flip_buffer.after("draw_sprites"));
     }
 
     fn name(&self) -> &str {
@@ -207,7 +218,7 @@ impl SpriteSheet {
     }
 }
 
-pub(crate) struct Assets {
+pub struct Assets {
     font: SpriteSheet,
 }
 
@@ -220,13 +231,15 @@ impl Default for Assets {
 }
 
 #[derive(Component)]
-pub(crate) struct TextBox(String);
+struct TextBox(String);
 
 impl TextBox {
     fn new(text: impl Into<String>) -> Self {
         Self(text.into())
     }
+}
 
+impl Sprite for TextBox {
     fn draw(&self, bounds: &Bounds, assets: &Assets, renderer: &mut CanvasRenderer) {
         for (i, c) in self.0.chars().enumerate() {
             let tile = TileNumber::from_ascii(c.to_ascii_lowercase());
@@ -237,31 +250,8 @@ impl TextBox {
     }
 }
 
-#[derive(Component)]
-pub(crate) enum Sprite {
-    Player(Player),
-    TextBox(TextBox),
-}
-
-impl From<Player> for Sprite {
-    fn from(p: Player) -> Self {
-        Self::Player(p)
-    }
-}
-
-impl From<TextBox> for Sprite {
-    fn from(t: TextBox) -> Self {
-        Self::TextBox(t)
-    }
-}
-
-impl Sprite {
-    fn draw(&self, bounds: &Bounds, assets: &Assets, renderer: &mut CanvasRenderer) {
-        match self {
-            Self::Player(s) => s.draw(bounds, assets, renderer),
-            Self::TextBox(s) => s.draw(bounds, assets, renderer),
-        }
-    }
+trait Sprite {
+    fn draw(&self, bounds: &Bounds, assets: &Assets, renderer: &mut CanvasRenderer);
 }
 
 fn arbitrary_color(h: &impl Hash) -> Color {
@@ -271,11 +261,12 @@ fn arbitrary_color(h: &impl Hash) -> Color {
     Color { r, g, b }
 }
 
+#[derive(Component)]
 pub struct Player {
     pub handle: usize,
 }
 
-impl Player {
+impl Sprite for Player {
     fn draw(&self, bounds: &Bounds, _assets: &Assets, renderer: &mut CanvasRenderer) {
         let color = arbitrary_color(&self.handle);
 
@@ -300,32 +291,28 @@ impl_reflect_value!(Velocity);
 pub fn spawn_sprites(mut commands: Commands, mut rip: ResMut<RollbackIdProvider>) {
     commands
         .spawn()
-        .insert(Sprite::from(Player { handle: 0 }))
+        .insert(Player { handle: 0 })
         .insert(Bounds(Rect::new(Point2D::new(10, 10), Size2D::new(10, 10))))
         .insert(Velocity(Vector2D::zero()))
         .insert(Rollback::new(rip.next_id()));
 
     commands
         .spawn()
-        .insert(Sprite::from(Player { handle: 1 }))
+        .insert(Player { handle: 1 })
         .insert(Bounds(Rect::new(Point2D::new(30, 10), Size2D::new(10, 10))))
         .insert(Velocity(Vector2D::zero()))
         .insert(Rollback::new(rip.next_id()));
 
     commands
         .spawn()
-        .insert(Sprite::from(TextBox::new("hello world")))
+        .insert(TextBox::new("hello world"))
         .insert(Bounds(Rect::new(
             Point2D::new(10, 40),
             Size2D::new(100, 10),
         )));
 }
 
-pub(crate) fn draw(
-    assets: Res<Assets>,
-    mut renderer: NonSendMut<CanvasRenderer>,
-    query: Query<(&Bounds, &Sprite)>,
-) {
+fn draw_background(mut renderer: NonSendMut<CanvasRenderer>) {
     for p in RENDER_RECT.point_iter() {
         renderer.color_pixel(
             p,
@@ -336,11 +323,19 @@ pub(crate) fn draw(
             },
         );
     }
+}
 
+fn draw_sprites<S: Sprite + Component>(
+    assets: Res<Assets>,
+    mut renderer: NonSendMut<CanvasRenderer>,
+    query: Query<(&Bounds, &S)>,
+) {
     for (b, s) in query.iter() {
         s.draw(b, &*assets, &mut *renderer);
     }
+}
 
+fn flip_buffer(mut renderer: NonSendMut<CanvasRenderer>) {
     renderer.present();
     renderer.render();
 }
@@ -363,7 +358,7 @@ pub(crate) fn move_player(input: EnumSet<Input>, _player: &Player, velocity: &mu
     velocity.0 += direction;
 }
 
-pub(crate) fn physics(mut query: Query<(&mut Bounds, &mut Velocity, &Sprite)>) {
+pub fn physics(mut query: Query<(&mut Bounds, &mut Velocity, &Player)>) {
     for (mut b, mut v, _) in query.iter_mut() {
         b.0.origin += v.0;
 

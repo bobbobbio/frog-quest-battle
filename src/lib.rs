@@ -64,13 +64,11 @@ fn input(_: In<ggrs::PlayerHandle>, mut input_stream: NonSendMut<InputStream>) -
 
 fn move_sprites(
     inputs: Res<Vec<ggrs::GameInput>>,
-    mut object_query: Query<(&mut game::Bounds, &mut game::Velocity, &game::Sprite)>,
+    mut object_query: Query<(&mut game::Bounds, &mut game::Velocity, &game::Player)>,
 ) {
-    for (_, mut velocity, sprite) in object_query.iter_mut() {
-        if let game::Sprite::Player(player) = sprite {
-            let input = EnumSet::from_u8(inputs[player.handle].buffer[0]);
-            game::move_player(input, player, &mut velocity);
-        }
+    for (_, mut velocity, player) in object_query.iter_mut() {
+        let input = EnumSet::from_u8(inputs[player.handle].buffer[0]);
+        game::move_player(input, player, &mut velocity);
     }
 
     game::physics(object_query);
