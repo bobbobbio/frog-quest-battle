@@ -2,6 +2,7 @@
 
 use super::renderer::{CanvasRenderer, Color, Pixels, BLACK, RENDER_RECT};
 use super::Input;
+use bevy::diagnostic::{Diagnostics, DiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::reflect::impl_reflect_value;
 use bevy_ggrs::*;
@@ -87,6 +88,9 @@ impl bevy::app::Plugin for Plugin {
             .register_rollback_type::<Bounds>()
             .register_rollback_type::<Velocity>()
             .add_startup_system(spawn_sprites)
+            .add_plugin(DiagnosticsPlugin)
+            .add_plugin(FrameTimeDiagnosticsPlugin)
+            .add_system(update_fps)
             .add_plugin(DrawPlugin);
     }
 
@@ -115,6 +119,15 @@ impl bevy::app::Plugin for DrawPlugin {
 
     fn name(&self) -> &str {
         "draw"
+    }
+}
+
+fn update_fps(diagnostics: Res<Diagnostics>, mut query: Query<&mut TextBox, With<FpsCounter>>) {
+    let mut tb = query.iter_mut().next().unwrap();
+
+    let fps_diagnostic = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS).unwrap();
+    if let Some(fps_avg) = fps_diagnostic.average() {
+        tb.0 = format!("{} fps", fps_avg as u32);
     }
 }
 
@@ -163,8 +176,12 @@ impl TileNumber {
         assert!(c.is_ascii(), "can't display non-ASCII");
         if c == ' ' {
             Self::new(259)
-        } else {
+        } else if c >= 'a' && c <= 'z' {
             Self::new(c as u32 - 'a' as u32)
+        } else if c >= '0' && c <= '9' {
+            Self::new(c as u32 - '0' as u32 + 52)
+        } else {
+            panic!("{} not in tile-set", c);
         }
     }
 }
@@ -300,6 +317,9 @@ pub struct Velocity(Vector2D<i32, Pixels>);
 
 impl_reflect_value!(Velocity);
 
+#[derive(Component)]
+struct FpsCounter;
+
 pub fn spawn_sprites(mut commands: Commands, mut rip: ResMut<RollbackIdProvider>) {
     commands
         .spawn()
@@ -320,6 +340,15 @@ pub fn spawn_sprites(mut commands: Commands, mut rip: ResMut<RollbackIdProvider>
         .insert(TextBox::new("hello world"))
         .insert(Bounds(Rect::new(
             Point2D::new(10, 40),
+            Size2D::new(100, 10),
+        )));
+
+    commands
+        .spawn()
+        .insert(TextBox::new("fps"))
+        .insert(FpsCounter)
+        .insert(Bounds(Rect::new(
+            Point2D::new(10, 100),
             Size2D::new(100, 10),
         )));
 }
