@@ -9,9 +9,7 @@ use enumset::{EnumSet, EnumSetType};
 use ggrs::PlayerType;
 use matchbox_socket::WebRtcNonBlockingSocket;
 use renderer::{CanvasRenderer, RENDER_RECT};
-use std::cell::RefCell;
 use std::mem;
-use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast as _;
@@ -30,50 +28,6 @@ fn canvas() -> web_sys::HtmlCanvasElement {
         .dyn_into::<web_sys::HtmlCanvasElement>()
         .map_err(|_| ())
         .unwrap()
-}
-
-fn request_animation_frame(f: &Closure<dyn FnMut()>) {
-    window()
-        .request_animation_frame(f.as_ref().unchecked_ref())
-        .expect("should register `requestAnimationFrame` OK");
-}
-
-#[derive(Clone)]
-struct RenderFlag(Rc<RefCell<bool>>);
-
-impl RenderFlag {
-    fn new() -> Self {
-        let flag = Rc::new(RefCell::new(false));
-
-        let f = Rc::new(RefCell::new(None));
-        let g = f.clone();
-
-        let their_flag = flag.clone();
-        *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
-            *their_flag.borrow_mut() = true;
-
-            // Schedule ourselves for another requestAnimationFrame callback.
-            request_animation_frame(f.borrow().as_ref().unwrap());
-        }) as Box<dyn FnMut()>));
-
-        request_animation_frame(g.borrow().as_ref().unwrap());
-
-        Self(flag)
-    }
-
-    fn should_render(&self) -> bool {
-        *self.0.borrow()
-    }
-
-    fn reset(&self) {
-        *self.0.borrow_mut() = false;
-    }
-}
-
-impl Default for RenderFlag {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 #[derive(EnumSetType)]
@@ -242,7 +196,6 @@ pub fn start() {
     canvas.set_height(canvas_rect.size.height as u32);
 
     App::new()
-        .init_non_send_resource::<RenderFlag>()
         .init_non_send_resource::<CanvasRenderer>()
         .init_non_send_resource::<InputStream>()
         .insert_resource(ScheduleRunnerSettings::run_loop(Duration::from_millis(16)))

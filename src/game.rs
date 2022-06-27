@@ -1,7 +1,7 @@
 // copyright 2022 Remi Bernotavicius
 
 use super::renderer::{CanvasRenderer, Color, Pixels, BLACK, RENDER_RECT};
-use super::{Input, RenderFlag};
+use super::Input;
 use bevy::prelude::*;
 use bevy::reflect::impl_reflect_value;
 use bevy_ggrs::*;
@@ -324,13 +324,8 @@ pub fn spawn_sprites(mut commands: Commands, mut rip: ResMut<RollbackIdProvider>
 pub(crate) fn draw(
     assets: Res<Assets>,
     mut renderer: NonSendMut<CanvasRenderer>,
-    render_flag: NonSend<RenderFlag>,
     query: Query<(&Bounds, &Sprite)>,
 ) {
-    if !render_flag.should_render() {
-        return;
-    }
-
     for p in RENDER_RECT.point_iter() {
         renderer.color_pixel(
             p,
@@ -346,7 +341,6 @@ pub(crate) fn draw(
         s.draw(b, &*assets, &mut *renderer);
     }
 
-    render_flag.reset();
     renderer.present();
     renderer.render();
 }
