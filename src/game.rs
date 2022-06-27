@@ -87,7 +87,19 @@ impl bevy::app::Plugin for Plugin {
             .register_rollback_type::<Bounds>()
             .register_rollback_type::<Velocity>()
             .add_startup_system(spawn_sprites)
-            .add_system(draw_background.label("draw_background"))
+            .add_plugin(DrawPlugin);
+    }
+
+    fn name(&self) -> &str {
+        "main game"
+    }
+}
+
+pub struct DrawPlugin;
+
+impl bevy::app::Plugin for DrawPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_system(draw_background.label("draw_background"))
             .add_system(
                 draw_sprites::<TextBox>
                     .after("draw_background")
@@ -102,7 +114,7 @@ impl bevy::app::Plugin for Plugin {
     }
 
     fn name(&self) -> &str {
-        "main game"
+        "draw"
     }
 }
 
