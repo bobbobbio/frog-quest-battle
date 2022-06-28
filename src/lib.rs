@@ -9,6 +9,7 @@ use enumset::{EnumSet, EnumSetType};
 use ggrs::PlayerType;
 use matchbox_socket::WebRtcNonBlockingSocket;
 use renderer::{CanvasRenderer, RENDER_RECT};
+use std::fmt;
 use std::mem;
 use std::sync::mpsc::{channel, Receiver};
 use wasm_bindgen::prelude::*;
@@ -28,6 +29,27 @@ fn canvas() -> web_sys::HtmlCanvasElement {
         .dyn_into::<web_sys::HtmlCanvasElement>()
         .map_err(|_| ())
         .unwrap()
+}
+
+#[derive(Clone, Copy)]
+enum ConnectionStatus {
+    WaitingForPlayers,
+    Connected,
+}
+
+impl Default for ConnectionStatus {
+    fn default() -> Self {
+        Self::WaitingForPlayers
+    }
+}
+
+impl fmt::Display for ConnectionStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::WaitingForPlayers => write!(f, "waiting for players"),
+            Self::Connected => write!(f, "connected"),
+        }
+    }
 }
 
 #[derive(EnumSetType)]
@@ -134,7 +156,11 @@ fn start_matchbox_socket(mut commands: Commands, task_pool: Res<IoTaskPool>) {
     commands.insert_resource(Some(socket));
 }
 
-fn wait_for_players(mut commands: Commands, mut socket: ResMut<Option<WebRtcNonBlockingSocket>>) {
+fn wait_for_players(
+    mut commands: Commands,
+    mut connection_status: ResMut<ConnectionStatus>,
+    mut socket: ResMut<Option<WebRtcNonBlockingSocket>>,
+) {
     let socket = socket.as_mut();
 
     // If there is no socket we've already started the game
@@ -150,6 +176,8 @@ fn wait_for_players(mut commands: Commands, mut socket: ResMut<Option<WebRtcNonB
     if players.len() < num_players {
         return; // wait for more players
     }
+
+    *connection_status = ConnectionStatus::Connected;
 
     log::info!("All peers have joined, going in-game");
 
@@ -196,6 +224,7 @@ pub fn start() {
     App::new()
         .init_non_send_resource::<CanvasRenderer>()
         .init_non_send_resource::<InputStream>()
+        .init_resource::<ConnectionStatus>()
         .insert_resource(ScheduleRunnerSettings::run_loop(Duration::from_millis(16)))
         .add_plugins(MinimalPlugins)
         .add_plugin(GGRSPlugin)

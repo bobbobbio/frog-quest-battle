@@ -90,7 +90,8 @@ impl bevy::app::Plugin for Plugin {
             .add_startup_system(spawn_sprites)
             .add_plugin(DiagnosticsPlugin)
             .add_plugin(FrameTimeDiagnosticsPlugin)
-            .add_system(update_fps)
+            .add_system(FpsCounterTextBox::update)
+            .add_system(ConnectionStatusTextBox::update)
             .add_plugin(DrawPlugin);
     }
 
@@ -119,15 +120,6 @@ impl bevy::app::Plugin for DrawPlugin {
 
     fn name(&self) -> &str {
         "draw"
-    }
-}
-
-fn update_fps(diagnostics: Res<Diagnostics>, mut query: Query<&mut TextBox, With<FpsCounter>>) {
-    let mut tb = query.iter_mut().next().unwrap();
-
-    let fps_diagnostic = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS).unwrap();
-    if let Some(fps_avg) = fps_diagnostic.average() {
-        tb.0 = format!("{} fps", fps_avg as u32);
     }
 }
 
@@ -318,7 +310,28 @@ pub struct Velocity(Vector2D<i32, Pixels>);
 impl_reflect_value!(Velocity);
 
 #[derive(Component)]
-struct FpsCounter;
+struct FpsCounterTextBox;
+
+impl FpsCounterTextBox {
+    fn update(diagnostics: Res<Diagnostics>, mut query: Query<&mut TextBox, With<Self>>) {
+        let mut tb = query.iter_mut().next().unwrap();
+
+        let fps_diagnostic = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS).unwrap();
+        if let Some(fps_avg) = fps_diagnostic.average() {
+            tb.0 = format!("{} fps", fps_avg as u32);
+        }
+    }
+}
+
+#[derive(Component)]
+struct ConnectionStatusTextBox;
+
+impl ConnectionStatusTextBox {
+    fn update(status: Res<super::ConnectionStatus>, mut query: Query<&mut TextBox, With<Self>>) {
+        let mut tb = query.iter_mut().next().unwrap();
+        tb.0 = status.to_string();
+    }
+}
 
 pub fn spawn_sprites(mut commands: Commands, mut rip: ResMut<RollbackIdProvider>) {
     commands
@@ -346,9 +359,18 @@ pub fn spawn_sprites(mut commands: Commands, mut rip: ResMut<RollbackIdProvider>
     commands
         .spawn()
         .insert(TextBox::new("fps"))
-        .insert(FpsCounter)
+        .insert(FpsCounterTextBox)
         .insert(Bounds(Rect::new(
             Point2D::new(10, 100),
+            Size2D::new(100, 10),
+        )));
+
+    commands
+        .spawn()
+        .insert(TextBox::new("connecting"))
+        .insert(ConnectionStatusTextBox)
+        .insert(Bounds(Rect::new(
+            Point2D::new(10, 120),
             Size2D::new(100, 10),
         )));
 }
