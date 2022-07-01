@@ -31,16 +31,11 @@ fn canvas() -> web_sys::HtmlCanvasElement {
         .unwrap()
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 enum ConnectionStatus {
+    #[default]
     WaitingForPlayers,
     Connected,
-}
-
-impl Default for ConnectionStatus {
-    fn default() -> Self {
-        Self::WaitingForPlayers
-    }
 }
 
 impl fmt::Display for ConnectionStatus {
