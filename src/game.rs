@@ -1,7 +1,8 @@
 // copyright 2022 Remi Bernotavicius
 
+use super::net;
 use super::renderer::{CanvasRenderer, Color, Pixels, BLACK, RENDER_RECT};
-use super::Input;
+use net::Input;
 use bevy::diagnostic::{Diagnostics, DiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::reflect::impl_reflect_value;
@@ -327,7 +328,7 @@ impl FpsCounterTextBox {
 struct ConnectionStatusTextBox;
 
 impl ConnectionStatusTextBox {
-    fn update(status: Res<super::ConnectionStatus>, mut query: Query<&mut TextBox, With<Self>>) {
+    fn update(status: Res<net::ConnectionStatus>, mut query: Query<&mut TextBox, With<Self>>) {
         let mut tb = query.iter_mut().next().unwrap();
         tb.0 = status.to_string();
     }
