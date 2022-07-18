@@ -26,6 +26,13 @@ fn canvas() -> web_sys::HtmlCanvasElement {
         .unwrap()
 }
 
+fn resize_canvas() {
+    let canvas = canvas();
+    let canvas_rect = RENDER_RECT * renderer::PIXEL_SCALE;
+    canvas.set_width(canvas_rect.size.width as u32);
+    canvas.set_height(canvas_rect.size.height as u32);
+}
+
 #[wasm_bindgen(start)]
 pub fn start() {
     console_error_panic_hook::set_once();
@@ -33,10 +40,7 @@ pub fn start() {
 
     log::info!("Frog Quest Battle Starting");
 
-    let canvas = canvas();
-    let canvas_rect = RENDER_RECT * renderer::PIXEL_SCALE;
-    canvas.set_width(canvas_rect.size.width as u32);
-    canvas.set_height(canvas_rect.size.height as u32);
+    resize_canvas();
 
     App::new()
         .init_non_send_resource::<CanvasRenderer>()
