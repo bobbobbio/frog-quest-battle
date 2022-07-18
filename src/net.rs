@@ -1,6 +1,5 @@
 // copyright 2022 Remi Bernotavicius
 
-use super::{InputStream, KeyboardEvent};
 use enumset::{EnumSet, EnumSetType};
 use ggrs::PlayerType;
 use matchbox_socket::WebRtcNonBlockingSocket;
@@ -8,7 +7,8 @@ use bevy::prelude::*;
 use bevy_ggrs::*;
 use std::{fmt, mem};
 use bevy::tasks::IoTaskPool;
-use super::game;
+use super::{input, game};
+use input::{KeyboardEvent, InputStream};
 
 #[derive(Clone, Copy, Default)]
 pub enum ConnectionStatus {
