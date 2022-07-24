@@ -1,5 +1,16 @@
 body {
     background-color: black;
+    color: rgb(250, 232, 150);
+    font-family: "Lucida Console", "Courier New", monospace;
+    font-size: 10px;
+}
+
+a:link {
+    color: rgb(28, 124, 148);
+}
+
+a:visited {
+    color: rgb(28, 124, 148);
 }
 
 canvas {
@@ -7,5 +18,23 @@ canvas {
     padding-right: 0;
     margin-left: auto;
     margin-right: auto;
+    display: block;
+}
+
+#info_hidden {
+    display: none;
+}
+
+#info {
+    position: absolute;
+    bottom: 0;
+    left: 1;
+}
+
+#info_hidden:hover {
+    display: block;
+}
+
+#info_toggle:hover + #info_hidden {
     display: block;
 }

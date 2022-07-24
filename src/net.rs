@@ -1,14 +1,14 @@
 // copyright 2022 Remi Bernotavicius
 
+use super::{game, graphics, input, AppState};
+use bevy::prelude::*;
+use bevy::tasks::IoTaskPool;
+use bevy_ggrs::*;
 use enumset::{EnumSet, EnumSetType};
 use ggrs::PlayerType;
+use input::{InputStream, KeyboardEvent};
 use matchbox_socket::WebRtcNonBlockingSocket;
-use bevy::prelude::*;
-use bevy_ggrs::*;
 use std::{fmt, mem};
-use bevy::tasks::IoTaskPool;
-use super::{AppState, input, game, graphics};
-use input::{KeyboardEvent, InputStream};
 
 #[derive(Clone, Copy, Default)]
 pub enum ConnectionStatus {
@@ -71,7 +71,7 @@ fn move_sprites(
 }
 
 fn start_matchbox_socket(mut commands: Commands, task_pool: Res<IoTaskPool>) {
-    let room_url = "ws://orange:3536/next_2";
+    let room_url = "ws://remi.party:3536/next_2";
     log::info!("connecting to matchbox server: {:?}", room_url);
     let (socket, message_loop) = WebRtcNonBlockingSocket::new(room_url);
 
@@ -140,13 +140,13 @@ pub struct Plugin;
 impl bevy::app::Plugin for Plugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ConnectionStatus>()
-        .add_plugin(GGRSPlugin)
-        .with_rollback_schedule(Schedule::default().with_stage(
-            "ROLLBACK_STAGE",
-            SystemStage::single_threaded().with_system(move_sprites),
-        ))
-        .with_input_system(input)
-        .add_system_set(SystemSet::on_enter(AppState::Game).with_system(start_matchbox_socket))
-        .add_system_set(SystemSet::on_update(AppState::Game).with_system(wait_for_players));
+            .add_plugin(GGRSPlugin)
+            .with_rollback_schedule(Schedule::default().with_stage(
+                "ROLLBACK_STAGE",
+                SystemStage::single_threaded().with_system(move_sprites),
+            ))
+            .with_input_system(input)
+            .add_system_set(SystemSet::on_enter(AppState::Game).with_system(start_matchbox_socket))
+            .add_system_set(SystemSet::on_update(AppState::Game).with_system(wait_for_players));
     }
 }
