@@ -4,7 +4,7 @@ use super::{despawn_screen, graphics, input, AppState};
 use bevy::prelude::*;
 use euclid::{Point2D, Rect, Size2D};
 use graphics::{Bounds, TextBox, PALLET};
-use input::{InputStream, KeyboardEvent};
+use input::{Input, InputStream};
 
 #[derive(Component)]
 struct OnMenu;
@@ -48,7 +48,7 @@ fn spawn_sprites(mut commands: Commands) {
 fn drive_menu(mut input_stream: NonSendMut<InputStream>, mut app_state: ResMut<State<AppState>>) {
     while let Some(i) = input_stream.get() {
         match i {
-            KeyboardEvent::Down(e) if e.code() == "Enter" => {
+            Input::Primary => {
                 app_state.set(AppState::Game).unwrap();
             }
             _ => {}

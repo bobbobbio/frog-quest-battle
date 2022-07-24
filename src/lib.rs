@@ -3,17 +3,17 @@
 use bevy::app::ScheduleRunnerSettings;
 use bevy::prelude::*;
 use bevy::utils::Duration;
+use input::InputStream;
 use renderer::{CanvasRenderer, RENDER_RECT};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast as _;
-use input::InputStream;
 
-mod net;
 mod game;
-mod renderer;
+mod graphics;
 mod input;
 mod menu;
-mod graphics;
+mod net;
+mod renderer;
 
 fn window() -> web_sys::Window {
     web_sys::window().expect("no global `window` exists")
@@ -39,7 +39,7 @@ fn resize_canvas() {
 enum AppState {
     #[default]
     Menu,
-    Game
+    Game,
 }
 
 #[wasm_bindgen(start)]
@@ -57,6 +57,7 @@ pub fn start() {
         .insert_resource(ScheduleRunnerSettings::run_loop(Duration::from_millis(16)))
         .add_state(AppState::default())
         .add_plugins(MinimalPlugins)
+        .add_plugin(input::Plugin)
         .add_plugin(net::Plugin)
         .add_plugin(graphics::Plugin)
         .add_plugin(menu::Plugin)

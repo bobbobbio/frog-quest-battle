@@ -4,9 +4,9 @@ use super::{game, graphics, input, AppState};
 use bevy::prelude::*;
 use bevy::tasks::IoTaskPool;
 use bevy_ggrs::*;
-use enumset::{EnumSet, EnumSetType};
+use enumset::EnumSet;
 use ggrs::PlayerType;
-use input::{InputStream, KeyboardEvent};
+use input::InputStream;
 use matchbox_socket::WebRtcNonBlockingSocket;
 use std::{fmt, mem};
 
@@ -26,33 +26,11 @@ impl fmt::Display for ConnectionStatus {
     }
 }
 
-#[derive(EnumSetType)]
-pub enum Input {
-    Up,
-    Down,
-    Left,
-    Right,
-}
-
 fn input(_: In<ggrs::PlayerHandle>, mut input_stream: NonSendMut<InputStream>) -> Vec<u8> {
     let mut set = EnumSet::new();
 
     while let Some(i) = input_stream.get() {
-        match i {
-            KeyboardEvent::Down(e) if e.code() == "ArrowUp" => {
-                set.insert(Input::Up);
-            }
-            KeyboardEvent::Down(e) if e.code() == "ArrowDown" => {
-                set.insert(Input::Down);
-            }
-            KeyboardEvent::Down(e) if e.code() == "ArrowLeft" => {
-                set.insert(Input::Left);
-            }
-            KeyboardEvent::Down(e) if e.code() == "ArrowRight" => {
-                set.insert(Input::Right);
-            }
-            _ => {}
-        }
+        set.insert(i);
     }
 
     vec![set.as_u8()]

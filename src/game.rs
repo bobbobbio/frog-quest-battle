@@ -1,7 +1,7 @@
 // copyright 2022 Remi Bernotavicius
 
 use super::renderer::{CanvasRenderer, Color, Pixels, RENDER_RECT};
-use super::{despawn_screen, graphics, net, AppState};
+use super::{despawn_screen, graphics, input, net, AppState};
 use bevy::diagnostic::{Diagnostics, DiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::reflect::impl_reflect_value;
@@ -9,7 +9,7 @@ use bevy_ggrs::*;
 use enumset::EnumSet;
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use graphics::{draw_sprites, Assets, Bounds, PointIterExt as _, Sprite, TextBox, PALLET};
-use net::Input;
+use input::Input;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher as _};
 

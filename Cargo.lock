@@ -1428,6 +1428,7 @@ dependencies = [
  "enumset",
  "euclid",
  "ggrs",
+ "gilrs",
  "js-sys",
  "log",
  "matchbox_socket",
