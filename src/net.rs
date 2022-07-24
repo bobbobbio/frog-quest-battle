@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use bevy_ggrs::*;
 use std::{fmt, mem};
 use bevy::tasks::IoTaskPool;
-use super::{input, game};
+use super::{AppState, input, game, graphics};
 use input::{KeyboardEvent, InputStream};
 
 #[derive(Clone, Copy, Default)]
@@ -60,7 +60,7 @@ fn input(_: In<ggrs::PlayerHandle>, mut input_stream: NonSendMut<InputStream>) -
 
 fn move_sprites(
     inputs: Res<Vec<ggrs::GameInput>>,
-    mut object_query: Query<(&mut game::Bounds, &mut game::Velocity, &game::Player)>,
+    mut object_query: Query<(&mut graphics::Bounds, &mut game::Velocity, &game::Player)>,
 ) {
     for (_, mut velocity, player) in object_query.iter_mut() {
         let input = EnumSet::from_u8(inputs[player.handle].buffer[0]);
@@ -145,9 +145,8 @@ impl bevy::app::Plugin for Plugin {
             "ROLLBACK_STAGE",
             SystemStage::single_threaded().with_system(move_sprites),
         ))
-        .add_plugin(game::Plugin)
         .with_input_system(input)
-        .add_startup_system(start_matchbox_socket)
-        .add_system(wait_for_players);
+        .add_system_set(SystemSet::on_enter(AppState::Game).with_system(start_matchbox_socket))
+        .add_system_set(SystemSet::on_update(AppState::Game).with_system(wait_for_players));
     }
 }

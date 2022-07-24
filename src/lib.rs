@@ -12,6 +12,8 @@ mod net;
 mod game;
 mod renderer;
 mod input;
+mod menu;
+mod graphics;
 
 fn window() -> web_sys::Window {
     web_sys::window().expect("no global `window` exists")
@@ -33,6 +35,13 @@ fn resize_canvas() {
     canvas.set_height(canvas_rect.size.height as u32);
 }
 
+#[derive(Default, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+enum AppState {
+    #[default]
+    Menu,
+    Game
+}
+
 #[wasm_bindgen(start)]
 pub fn start() {
     console_error_panic_hook::set_once();
@@ -46,7 +55,17 @@ pub fn start() {
         .init_non_send_resource::<CanvasRenderer>()
         .init_non_send_resource::<InputStream>()
         .insert_resource(ScheduleRunnerSettings::run_loop(Duration::from_millis(16)))
+        .add_state(AppState::default())
         .add_plugins(MinimalPlugins)
         .add_plugin(net::Plugin)
+        .add_plugin(graphics::Plugin)
+        .add_plugin(menu::Plugin)
+        .add_plugin(game::Plugin)
         .run();
+}
+
+fn despawn_screen<T: Component>(to_despawn: Query<Entity, With<T>>, mut commands: Commands) {
+    for entity in to_despawn.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
 }

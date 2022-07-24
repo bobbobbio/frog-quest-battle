@@ -71,7 +71,7 @@ pub struct CanvasRenderer {
 
 pub const RENDER_RECT: Rect<i32, Pixels> = Rect {
     origin: Point2D::<i32, Pixels>::new(0, 0),
-    size: Size2D::<i32, Pixels>::new(315, 143),
+    size: Size2D::<i32, Pixels>::new(256, 144),
 };
 
 pub const PIXEL_SCALE: Scale<i32, Pixels, WebGlPixels> = Scale::new(4);
