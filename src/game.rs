@@ -17,6 +17,15 @@ use std::hash::{Hash, Hasher as _};
 #[derive(Component)]
 struct OnGame;
 
+#[derive(Default)]
+pub struct GameStatus(String);
+
+impl GameStatus {
+    pub fn set_message(&mut self, message: impl Into<String>) {
+        self.0 = message.into();
+    }
+}
+
 pub struct Plugin {
     state: AppState,
 }
@@ -29,7 +38,8 @@ impl Plugin {
 
 impl bevy::app::Plugin for Plugin {
     fn build(&self, app: &mut App) {
-        app.register_rollback_type::<Velocity>()
+        app.init_resource::<GameStatus>()
+            .register_rollback_type::<Velocity>()
             .add_plugin(DiagnosticsPlugin)
             .add_plugin(FrameTimeDiagnosticsPlugin)
             .add_system_set(SystemSet::on_enter(self.state).with_system(spawn_sprites))
@@ -41,6 +51,7 @@ impl bevy::app::Plugin for Plugin {
                 ),
             )
             .add_system_set(SystemSet::on_update(self.state).with_system(FpsCounterTextBox::update))
+            .add_system_set(SystemSet::on_update(self.state).with_system(GameStatusTextBox::update))
             .add_system_set(SystemSet::on_exit(self.state).with_system(despawn_screen::<OnGame>));
     }
 
@@ -102,35 +113,51 @@ impl_reflect_value!(Velocity);
 struct FpsCounterTextBox;
 
 impl FpsCounterTextBox {
-    fn update(diagnostics: Res<Diagnostics>, mut query: Query<&mut TextBox, With<Self>>) {
-        let mut tb = query.iter_mut().next().unwrap();
+    pub fn spawn<'a, 'w, 's>(
+        commands: &'a mut Commands<'w, 's>,
+        pos: impl Into<Point2D<i32, Pixels>>,
+        color: Color,
+    ) -> EntityCommands<'w, 's, 'a> {
+        let mut entity = TextBox::spawn(commands, "fps", pos, color);
+        entity.insert(Self);
+        entity
+    }
 
+    fn update(diagnostics: Res<Diagnostics>, mut query: Query<&mut TextBox, With<Self>>) {
         let fps_diagnostic = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS).unwrap();
         if let Some(fps_avg) = fps_diagnostic.average() {
-            tb.text = format!("{} fps", fps_avg as u32);
+            for mut tb in query.iter_mut() {
+                tb.text = format!("{} fps", fps_avg as u32);
+            }
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct GameStatusTextBox;
+
+impl GameStatusTextBox {
+    fn spawn<'a, 'w, 's>(
+        commands: &'a mut Commands<'w, 's>,
+        pos: impl Into<Point2D<i32, Pixels>>,
+        color: Color,
+    ) -> EntityCommands<'w, 's, 'a> {
+        let mut entity = TextBox::spawn(commands, "", pos, color);
+        entity.insert(Self);
+        entity
+    }
+
+    fn update(status: Res<GameStatus>, mut query: Query<&mut TextBox, With<Self>>) {
+        for mut tb in query.iter_mut() {
+            tb.text = status.0.clone();
         }
     }
 }
 
 pub fn spawn_sprites(mut commands: Commands) {
-    commands
-        .spawn()
-        .insert(TextBox::new("hello world", PALLET[2]))
-        .insert(Bounds(Rect::new(
-            Point2D::new(10, 40),
-            Size2D::new(100, 10),
-        )))
-        .insert(OnGame);
-
-    commands
-        .spawn()
-        .insert(TextBox::new("fps", PALLET[2]))
-        .insert(FpsCounterTextBox)
-        .insert(Bounds(Rect::new(
-            Point2D::new(10, 100),
-            Size2D::new(100, 10),
-        )))
-        .insert(OnGame);
+    TextBox::spawn(&mut commands, "hello world", (10, 40), PALLET[2]).insert(OnGame);
+    GameStatusTextBox::spawn(&mut commands, (10, 150), PALLET[2]).insert(OnGame);
+    FpsCounterTextBox::spawn(&mut commands, (10, 100), PALLET[2]).insert(OnGame);
 }
 
 pub(crate) fn move_player(input: EnumSet<Input>, _player: &Player, velocity: &mut Velocity) {

@@ -8,25 +8,9 @@ use enumset::EnumSet;
 use ggrs::PlayerType;
 use input::InputStream;
 use matchbox_socket::WebRtcNonBlockingSocket;
-use std::{fmt, mem};
+use std::mem;
 
 const NUM_PLAYERS: u32 = 2;
-
-#[derive(Clone, Copy, Default)]
-pub enum ConnectionStatus {
-    #[default]
-    WaitingForPlayers,
-    Connected,
-}
-
-impl fmt::Display for ConnectionStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::WaitingForPlayers => write!(f, "waiting for players"),
-            Self::Connected => write!(f, "connected"),
-        }
-    }
-}
 
 fn input(_: In<ggrs::PlayerHandle>, mut input_stream: NonSendMut<InputStream>) -> Vec<u8> {
     let mut set = EnumSet::new();
@@ -50,7 +34,13 @@ fn move_sprites(
     game::physics(object_query);
 }
 
-fn start_matchbox_socket(mut commands: Commands, task_pool: Res<IoTaskPool>) {
+fn start_matchbox_socket(
+    mut commands: Commands,
+    mut game_status: ResMut<game::GameStatus>,
+    task_pool: Res<IoTaskPool>,
+) {
+    game_status.set_message("connecting");
+
     let room_url = "ws://remi.party:3536/next_2";
     log::info!("connecting to matchbox server: {:?}", room_url);
     let (socket, message_loop) = WebRtcNonBlockingSocket::new(room_url);
@@ -64,13 +54,14 @@ fn start_matchbox_socket(mut commands: Commands, task_pool: Res<IoTaskPool>) {
 
 fn wait_for_players(
     mut commands: Commands,
-    mut connection_status: ResMut<ConnectionStatus>,
+    mut game_status: ResMut<game::GameStatus>,
     mut socket: ResMut<Option<WebRtcNonBlockingSocket>>,
 ) {
     let socket = socket.as_mut();
 
     // If there is no socket we've already started the game
     if socket.is_none() {
+        game_status.set_message("game started");
         return;
     }
 
@@ -79,10 +70,9 @@ fn wait_for_players(
     let players = socket.as_ref().unwrap().players();
 
     if players.len() < NUM_PLAYERS as usize {
+        game_status.set_message("waiting for players");
         return; // wait for more players
     }
-
-    *connection_status = ConnectionStatus::Connected;
 
     log::info!("All peers have joined, going in-game");
 
@@ -124,8 +114,7 @@ pub struct Plugin;
 
 impl bevy::app::Plugin for Plugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ConnectionStatus>()
-            .add_plugin(GGRSPlugin)
+        app.add_plugin(GGRSPlugin)
             .with_rollback_schedule(Schedule::default().with_stage(
                 "ROLLBACK_STAGE",
                 SystemStage::single_threaded().with_system(move_sprites),
