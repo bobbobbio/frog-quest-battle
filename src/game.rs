@@ -87,7 +87,7 @@ impl FpsCounterTextBox {
 
         let fps_diagnostic = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS).unwrap();
         if let Some(fps_avg) = fps_diagnostic.average() {
-            tb.0 = format!("{} fps", fps_avg as u32);
+            tb.text = format!("{} fps", fps_avg as u32);
         }
     }
 }
@@ -98,7 +98,7 @@ struct ConnectionStatusTextBox;
 impl ConnectionStatusTextBox {
     fn update(status: Res<net::ConnectionStatus>, mut query: Query<&mut TextBox, With<Self>>) {
         let mut tb = query.iter_mut().next().unwrap();
-        tb.0 = status.to_string();
+        tb.text = status.to_string();
     }
 }
 

@@ -1,6 +1,7 @@
 // copyright 2022 Remi Bernotavicius
 
 use super::renderer::{CanvasRenderer, Color, Pixels, BLACK, RENDER_RECT};
+use bevy::ecs::system::EntityCommands;
 use bevy::prelude::*;
 use bevy::reflect::impl_reflect_value;
 use bevy_ggrs::*;
@@ -242,31 +243,52 @@ impl Default for Assets {
 #[derive(Component)]
 pub struct SimpleSprite {
     pub tile: TileNumber,
-    pub color: Color
+    pub color: Color,
 }
 
 impl Sprite for SimpleSprite {
     fn draw(&self, bounds: &Bounds, assets: &Assets, renderer: &mut CanvasRenderer) {
-        assets.font.draw_tile(self.tile, bounds.0.origin.clone(), self.color, renderer);
+        assets
+            .font
+            .draw_tile(self.tile, bounds.0.origin.clone(), self.color, renderer);
     }
 }
 
 #[derive(Component)]
-pub struct TextBox(pub String, pub Color);
+pub struct TextBox {
+    pub text: String,
+    pub color: Color,
+}
 
 impl TextBox {
     pub fn new(text: impl Into<String>, color: Color) -> Self {
-        Self(text.into(), color)
+        Self {
+            text: text.into(),
+            color,
+        }
+    }
+
+    pub fn spawn<'a, 'w, 's>(
+        commands: &'a mut Commands<'w, 's>,
+        text: impl Into<String>,
+        pos: impl Into<Point2D<i32, Pixels>>,
+        color: Color,
+    ) -> EntityCommands<'w, 's, 'a> {
+        let mut entity = commands.spawn();
+        entity
+            .insert(TextBox::new(text, color))
+            .insert(Bounds(Rect::new(pos.into(), Size2D::new(100, 10))));
+        entity
     }
 }
 
 impl Sprite for TextBox {
     fn draw(&self, bounds: &Bounds, assets: &Assets, renderer: &mut CanvasRenderer) {
-        for (i, c) in self.0.chars().enumerate() {
+        for (i, c) in self.text.chars().enumerate() {
             let tile = TileNumber::from_ascii(c.to_ascii_lowercase());
             let mut p = bounds.0.origin.clone();
             p.x += assets.font.tile_size.width * i as i32 / 2;
-            assets.font.draw_tile(tile, p, self.1, renderer);
+            assets.font.draw_tile(tile, p, self.color, renderer);
         }
     }
 }

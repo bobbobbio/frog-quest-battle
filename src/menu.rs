@@ -1,12 +1,11 @@
 // copyright 2022 Remi Bernotavicius
 
 use super::{despawn_screen, graphics, input, renderer, AppState};
-use bevy::ecs::system::EntityCommands;
 use bevy::prelude::*;
 use euclid::{Point2D, Rect, Size2D};
 use graphics::{Bounds, SimpleSprite, TextBox, TileNumber, PALLET};
 use input::{Input, InputStream};
-use renderer::{Color, Pixels};
+use renderer::Pixels;
 use std::iter;
 
 #[derive(Component)]
@@ -35,20 +34,24 @@ impl Menu {
         }
     }
 
+    fn current_text<'a>(&self, textboxes: &'a mut Query<&mut TextBox>) -> Mut<'a, TextBox> {
+        textboxes.get_mut(self.entries[self.pos]).unwrap()
+    }
+
     fn up(&mut self, marker_bounds: &mut Bounds, textboxes: &mut Query<&mut TextBox>) {
         if self.pos > 0 {
-            textboxes.get_mut(self.entries[self.pos]).unwrap().1 = PALLET[1];
+            self.current_text(textboxes).color = PALLET[1];
             self.pos -= 1;
-            textboxes.get_mut(self.entries[self.pos]).unwrap().1 = PALLET[3];
+            self.current_text(textboxes).color = PALLET[3];
             marker_bounds.0.origin.y -= 10;
         }
     }
 
     fn down(&mut self, marker_bounds: &mut Bounds, textboxes: &mut Query<&mut TextBox>) {
         if self.pos < self.entries.len() - 1 {
-            textboxes.get_mut(self.entries[self.pos]).unwrap().1 = PALLET[1];
+            self.current_text(textboxes).color = PALLET[1];
             self.pos += 1;
-            textboxes.get_mut(self.entries[self.pos]).unwrap().1 = PALLET[3];
+            self.current_text(textboxes).color = PALLET[3];
             marker_bounds.0.origin.y += 10;
         }
     }
@@ -60,9 +63,10 @@ impl Menu {
 
         let mut entries = vec![];
         let colors = iter::once(PALLET[3]).chain(iter::repeat(PALLET[1]));
-        for (text, color) in items.into_iter().zip(colors) {
+        for (&text, color) in items.into_iter().zip(colors) {
             entries.push(
-                spawn_text(&mut commands, text, text_pos, color)
+                TextBox::spawn(&mut commands, text, text_pos, color)
+                    .insert(OnMenu)
                     .insert(MenuText)
                     .id(),
             );
@@ -125,21 +129,7 @@ impl bevy::app::Plugin for Plugin {
     }
 }
 
-fn spawn_text<'a, 'w, 's>(
-    commands: &'a mut Commands<'w, 's>,
-    text: &str,
-    pos: impl Into<Point2D<i32, Pixels>>,
-    color: Color,
-) -> EntityCommands<'w, 's, 'a> {
-    let mut entity = commands.spawn();
-    entity
-        .insert(TextBox::new(text, color))
-        .insert(Bounds(Rect::new(pos.into(), Size2D::new(100, 10))))
-        .insert(OnMenu);
-    entity
-}
-
 fn spawn_sprites(mut commands: Commands) {
-    spawn_text(&mut commands, "frog quest battle", (10, 40), PALLET[2]);
+    TextBox::spawn(&mut commands, "frog quest battle", (10, 40), PALLET[2]).insert(OnMenu);
     Menu::spawn((10, 60), &["single player", "multiplayer"], commands);
 }
