@@ -92,6 +92,11 @@ impl bevy::app::Plugin for Plugin {
                     .after("draw_background")
                     .label("draw_sprites"),
             )
+            .add_system(
+                draw_sprites::<SimpleSprite>
+                    .after("draw_background")
+                    .label("draw_sprites"),
+            )
             .add_system(flip_buffer.after("draw_sprites"));
     }
 
@@ -133,10 +138,10 @@ impl From<bmp::Pixel> for Color {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct TileNumber(u32);
+pub struct TileNumber(u32);
 
 impl TileNumber {
-    fn new(value: u32) -> Self {
+    pub fn new(value: u32) -> Self {
         assert!(value < i32::MAX as u32, "invalid TileNumber {}", value);
         Self(value)
     }
@@ -231,6 +236,18 @@ impl Default for Assets {
         Self {
             font: SpriteSheet::new(FONT, (16, 16)),
         }
+    }
+}
+
+#[derive(Component)]
+pub struct SimpleSprite {
+    pub tile: TileNumber,
+    pub color: Color
+}
+
+impl Sprite for SimpleSprite {
+    fn draw(&self, bounds: &Bounds, assets: &Assets, renderer: &mut CanvasRenderer) {
+        assets.font.draw_tile(self.tile, bounds.0.origin.clone(), self.color, renderer);
     }
 }
 
