@@ -10,6 +10,8 @@ use input::InputStream;
 use matchbox_socket::WebRtcNonBlockingSocket;
 use std::{fmt, mem};
 
+const NUM_PLAYERS: u32 = 2;
+
 #[derive(Clone, Copy, Default)]
 pub enum ConnectionStatus {
     #[default]
@@ -41,7 +43,7 @@ fn move_sprites(
     mut object_query: Query<(&mut graphics::Bounds, &mut game::Velocity, &game::Player)>,
 ) {
     for (_, mut velocity, player) in object_query.iter_mut() {
-        let input = EnumSet::from_u8(inputs[player.handle].buffer[0]);
+        let input = EnumSet::from_u8(inputs[player.handle as usize].buffer[0]);
         game::move_player(input, player, &mut velocity);
     }
 
@@ -76,8 +78,7 @@ fn wait_for_players(
     socket.as_mut().unwrap().accept_new_connections();
     let players = socket.as_ref().unwrap().players();
 
-    let num_players = 2;
-    if players.len() < num_players {
+    if players.len() < NUM_PLAYERS as usize {
         return; // wait for more players
     }
 
@@ -92,7 +93,7 @@ fn wait_for_players(
 
     // create a GGRS P2P session
     let mut p2p_session = ggrs::P2PSession::new_with_socket(
-        num_players as u32,
+        NUM_PLAYERS,
         mem::size_of::<u8>(),
         max_prediction,
         socket,
@@ -113,6 +114,12 @@ fn wait_for_players(
     commands.start_p2p_session(p2p_session);
 }
 
+fn spawn_players(mut commands: Commands, mut rip: ResMut<RollbackIdProvider>) {
+    for handle in 0..2 {
+        game::Player::spawn(&mut commands, handle).insert(Rollback::new(rip.next_id()));
+    }
+}
+
 pub struct Plugin;
 
 impl bevy::app::Plugin for Plugin {
@@ -124,7 +131,14 @@ impl bevy::app::Plugin for Plugin {
                 SystemStage::single_threaded().with_system(move_sprites),
             ))
             .with_input_system(input)
-            .add_system_set(SystemSet::on_enter(AppState::Game).with_system(start_matchbox_socket))
-            .add_system_set(SystemSet::on_update(AppState::Game).with_system(wait_for_players));
+            .add_system_set(
+                SystemSet::on_enter(AppState::MultiplayerGame).with_system(spawn_players),
+            )
+            .add_system_set(
+                SystemSet::on_enter(AppState::MultiplayerGame).with_system(start_matchbox_socket),
+            )
+            .add_system_set(
+                SystemSet::on_update(AppState::MultiplayerGame).with_system(wait_for_players),
+            );
     }
 }

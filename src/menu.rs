@@ -20,12 +20,12 @@ struct MenuText;
 #[derive(Component)]
 struct Menu {
     pos: usize,
-    entries: Vec<Entity>,
+    entries: Vec<(Entity, AppState)>,
     marker: Entity,
 }
 
 impl Menu {
-    fn new(entries: Vec<Entity>, marker: Entity) -> Self {
+    fn new(entries: Vec<(Entity, AppState)>, marker: Entity) -> Self {
         assert!(entries.len() > 0);
         Self {
             pos: 0,
@@ -35,7 +35,11 @@ impl Menu {
     }
 
     fn current_text<'a>(&self, textboxes: &'a mut Query<&mut TextBox>) -> Mut<'a, TextBox> {
-        textboxes.get_mut(self.entries[self.pos]).unwrap()
+        textboxes.get_mut(self.entries[self.pos].0).unwrap()
+    }
+
+    fn current_app_state<'a>(&self) -> AppState {
+        self.entries[self.pos].1
     }
 
     fn up(&mut self, marker_bounds: &mut Bounds, textboxes: &mut Query<&mut TextBox>) {
@@ -56,20 +60,25 @@ impl Menu {
         }
     }
 
-    fn spawn(pos: impl Into<Point2D<i32, Pixels>>, items: &[&str], mut commands: Commands) {
+    fn spawn(
+        pos: impl Into<Point2D<i32, Pixels>>,
+        items: &[(&str, AppState)],
+        mut commands: Commands,
+    ) {
         let menu_pos = pos.into();
         let mut text_pos = menu_pos.clone();
         text_pos.x += 5;
 
         let mut entries = vec![];
         let colors = iter::once(PALLET[3]).chain(iter::repeat(PALLET[1]));
-        for (&text, color) in items.into_iter().zip(colors) {
-            entries.push(
+        for (&(text, state), color) in items.into_iter().zip(colors) {
+            entries.push((
                 TextBox::spawn(&mut commands, text, text_pos, color)
                     .insert(OnMenu)
                     .insert(MenuText)
                     .id(),
-            );
+                state,
+            ));
             text_pos.y += 10;
         }
 
@@ -103,7 +112,7 @@ impl Menu {
         while let Some(i) = input_stream.get() {
             match i {
                 Input::Primary => {
-                    app_state.set(AppState::Game).unwrap();
+                    app_state.set(self_.current_app_state()).unwrap();
                 }
                 Input::Up => self_.up(&mut *marker_bounds, &mut textboxes),
                 Input::Down => self_.down(&mut *marker_bounds, &mut textboxes),
@@ -131,5 +140,12 @@ impl bevy::app::Plugin for Plugin {
 
 fn spawn_sprites(mut commands: Commands) {
     TextBox::spawn(&mut commands, "frog quest battle", (10, 40), PALLET[2]).insert(OnMenu);
-    Menu::spawn((10, 60), &["single player", "multiplayer"], commands);
+    Menu::spawn(
+        (10, 60),
+        &[
+            ("single player", AppState::SinglePlayerGame),
+            ("multiplayer", AppState::MultiplayerGame),
+        ],
+        commands,
+    );
 }

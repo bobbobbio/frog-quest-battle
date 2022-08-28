@@ -1,8 +1,9 @@
 // copyright 2022 Remi Bernotavicius
 
 use super::renderer::{CanvasRenderer, Color, Pixels, RENDER_RECT};
-use super::{despawn_screen, graphics, input, net, AppState};
+use super::{despawn_screen, graphics, input, AppState};
 use bevy::diagnostic::{Diagnostics, DiagnosticsPlugin, FrameTimeDiagnosticsPlugin};
+use bevy::ecs::system::EntityCommands;
 use bevy::prelude::*;
 use bevy::reflect::impl_reflect_value;
 use bevy_ggrs::*;
@@ -16,30 +17,31 @@ use std::hash::{Hash, Hasher as _};
 #[derive(Component)]
 struct OnGame;
 
-pub struct Plugin;
+pub struct Plugin {
+    state: AppState,
+}
+
+impl Plugin {
+    pub(super) fn new(state: AppState) -> Self {
+        Self { state }
+    }
+}
 
 impl bevy::app::Plugin for Plugin {
     fn build(&self, app: &mut App) {
         app.register_rollback_type::<Velocity>()
             .add_plugin(DiagnosticsPlugin)
             .add_plugin(FrameTimeDiagnosticsPlugin)
-            .add_system_set(SystemSet::on_enter(AppState::Game).with_system(spawn_sprites))
+            .add_system_set(SystemSet::on_enter(self.state).with_system(spawn_sprites))
             .add_system_set(
-                SystemSet::on_update(AppState::Game).with_system(
+                SystemSet::on_update(self.state).with_system(
                     draw_sprites::<Player>
                         .after("draw_background")
                         .label("draw_sprites"),
                 ),
             )
-            .add_system_set(
-                SystemSet::on_update(AppState::Game).with_system(FpsCounterTextBox::update),
-            )
-            .add_system_set(
-                SystemSet::on_update(AppState::Game).with_system(ConnectionStatusTextBox::update),
-            )
-            .add_system_set(
-                SystemSet::on_exit(AppState::Menu).with_system(despawn_screen::<OnGame>),
-            );
+            .add_system_set(SystemSet::on_update(self.state).with_system(FpsCounterTextBox::update))
+            .add_system_set(SystemSet::on_exit(self.state).with_system(despawn_screen::<OnGame>));
     }
 
     fn name(&self) -> &str {
@@ -49,7 +51,7 @@ impl bevy::app::Plugin for Plugin {
 
 #[derive(Component)]
 pub struct Player {
-    pub handle: usize,
+    pub handle: u32,
 }
 
 fn arbitrary_color(h: &impl Hash) -> Color {
@@ -73,6 +75,24 @@ impl Sprite for Player {
     }
 }
 
+impl Player {
+    pub fn spawn<'a, 'w, 's>(
+        commands: &'a mut Commands<'w, 's>,
+        handle: u32,
+    ) -> EntityCommands<'w, 's, 'a> {
+        let mut entity = commands.spawn();
+        entity
+            .insert(Self { handle: 0 })
+            .insert(Bounds(Rect::new(
+                Point2D::new(10 + handle as i32 * 20, 10),
+                Size2D::new(10, 10),
+            )))
+            .insert(Velocity(Vector2D::zero()))
+            .insert(OnGame);
+        entity
+    }
+}
+
 #[derive(Component, Clone, Default)]
 pub struct Velocity(Vector2D<i32, Pixels>);
 
@@ -92,33 +112,7 @@ impl FpsCounterTextBox {
     }
 }
 
-#[derive(Component)]
-struct ConnectionStatusTextBox;
-
-impl ConnectionStatusTextBox {
-    fn update(status: Res<net::ConnectionStatus>, mut query: Query<&mut TextBox, With<Self>>) {
-        let mut tb = query.iter_mut().next().unwrap();
-        tb.text = status.to_string();
-    }
-}
-
-pub fn spawn_sprites(mut commands: Commands, mut rip: ResMut<RollbackIdProvider>) {
-    commands
-        .spawn()
-        .insert(Player { handle: 0 })
-        .insert(Bounds(Rect::new(Point2D::new(10, 10), Size2D::new(10, 10))))
-        .insert(Velocity(Vector2D::zero()))
-        .insert(Rollback::new(rip.next_id()))
-        .insert(OnGame);
-
-    commands
-        .spawn()
-        .insert(Player { handle: 1 })
-        .insert(Bounds(Rect::new(Point2D::new(30, 10), Size2D::new(10, 10))))
-        .insert(Velocity(Vector2D::zero()))
-        .insert(Rollback::new(rip.next_id()))
-        .insert(OnGame);
-
+pub fn spawn_sprites(mut commands: Commands) {
     commands
         .spawn()
         .insert(TextBox::new("hello world", PALLET[2]))
@@ -134,16 +128,6 @@ pub fn spawn_sprites(mut commands: Commands, mut rip: ResMut<RollbackIdProvider>
         .insert(FpsCounterTextBox)
         .insert(Bounds(Rect::new(
             Point2D::new(10, 100),
-            Size2D::new(100, 10),
-        )))
-        .insert(OnGame);
-
-    commands
-        .spawn()
-        .insert(TextBox::new("connecting", PALLET[2]))
-        .insert(ConnectionStatusTextBox)
-        .insert(Bounds(Rect::new(
-            Point2D::new(10, 120),
             Size2D::new(100, 10),
         )))
         .insert(OnGame);

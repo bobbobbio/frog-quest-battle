@@ -11,6 +11,7 @@ use wasm_bindgen::JsCast as _;
 mod game;
 mod graphics;
 mod input;
+mod local;
 mod menu;
 mod net;
 mod renderer;
@@ -39,7 +40,8 @@ fn resize_canvas() {
 enum AppState {
     #[default]
     Menu,
-    Game,
+    MultiplayerGame,
+    SinglePlayerGame,
 }
 
 #[wasm_bindgen(start)]
@@ -59,9 +61,11 @@ pub fn start() {
         .add_plugins(MinimalPlugins)
         .add_plugin(input::Plugin)
         .add_plugin(net::Plugin)
+        .add_plugin(local::Plugin)
         .add_plugin(graphics::Plugin)
         .add_plugin(menu::Plugin)
-        .add_plugin(game::Plugin)
+        .add_plugin(game::Plugin::new(AppState::MultiplayerGame))
+        .add_plugin(game::Plugin::new(AppState::SinglePlayerGame))
         .run();
 }
 
