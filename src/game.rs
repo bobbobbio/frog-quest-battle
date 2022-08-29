@@ -11,6 +11,7 @@ use enumset::EnumSet;
 use euclid::{Point2D, Rect, Size2D, Vector2D};
 use graphics::{draw_sprites, Assets, Bounds, PointIterExt as _, Sprite, TextBox, PALLET};
 use input::Input;
+use std::cmp;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher as _};
 
@@ -39,6 +40,7 @@ impl Plugin {
 impl bevy::app::Plugin for Plugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameStatus>()
+            .init_resource::<FrameCounter>()
             .register_rollback_type::<Velocity>()
             .add_plugin(DiagnosticsPlugin)
             .add_plugin(FrameTimeDiagnosticsPlugin)
@@ -52,6 +54,7 @@ impl bevy::app::Plugin for Plugin {
             )
             .add_system_set(SystemSet::on_update(self.state).with_system(FpsCounterTextBox::update))
             .add_system_set(SystemSet::on_update(self.state).with_system(GameStatusTextBox::update))
+            .add_system_set(SystemSet::on_update(self.state).with_system(FrameCounter::update))
             .add_system_set(SystemSet::on_exit(self.state).with_system(despawn_screen::<OnGame>));
     }
 
@@ -63,6 +66,7 @@ impl bevy::app::Plugin for Plugin {
 #[derive(Component)]
 pub struct Player {
     pub handle: u32,
+    last_flap_frame: u64,
 }
 
 fn arbitrary_color(h: &impl Hash) -> Color {
@@ -87,13 +91,19 @@ impl Sprite for Player {
 }
 
 impl Player {
+    fn new(handle: u32) -> Self {
+        Self {
+            handle,
+            last_flap_frame: 0,
+        }
+    }
     pub fn spawn<'a, 'w, 's>(
         commands: &'a mut Commands<'w, 's>,
         handle: u32,
     ) -> EntityCommands<'w, 's, 'a> {
         let mut entity = commands.spawn();
         entity
-            .insert(Self { handle: 0 })
+            .insert(Self::new(handle))
             .insert(Bounds(Rect::new(
                 Point2D::new(10 + handle as i32 * 20, 10),
                 Size2D::new(10, 10),
@@ -160,13 +170,18 @@ pub fn spawn_sprites(mut commands: Commands) {
     FpsCounterTextBox::spawn(&mut commands, (10, 100), PALLET[2]).insert(OnGame);
 }
 
-pub(crate) fn move_player(input: EnumSet<Input>, _player: &Player, velocity: &mut Velocity) {
+pub(crate) fn move_player(
+    frame_counter: &FrameCounter,
+    input: EnumSet<Input>,
+    player: &mut Player,
+    velocity: &mut Velocity,
+) {
     let mut direction = Vector2D::new(0, 0);
-    if input.contains(Input::Up) {
-        direction.y -= 1;
-    }
-    if input.contains(Input::Down) {
-        direction.y += 1;
+    if input.contains(Input::Primary) {
+        if frame_counter.0 - player.last_flap_frame > 5 {
+            direction.y -= 2;
+            player.last_flap_frame = frame_counter.0;
+        }
     }
     if input.contains(Input::Left) {
         direction.x -= 1;
@@ -176,18 +191,74 @@ pub(crate) fn move_player(input: EnumSet<Input>, _player: &Player, velocity: &mu
     }
 
     velocity.0 += direction;
+
+    // clamp horizontal velocity to 2
+    if velocity.0.x > 0 {
+        velocity.0.x = cmp::min(2, velocity.0.x);
+    } else {
+        velocity.0.x = cmp::max(-2, velocity.0.x);
+    }
 }
 
-pub fn physics(mut query: Query<(&mut Bounds, &mut Velocity, &Player)>) {
+#[derive(Default)]
+pub struct FrameCounter(u64);
+
+impl FrameCounter {
+    fn update(mut self_: ResMut<Self>) {
+        self_.0 += 1;
+    }
+}
+
+// gravity of 1 pixel downward per frame ^2
+const GRAVITY: Vector2D<i32, Pixels> = Vector2D::new(0, 1);
+
+pub fn physics(
+    frame_counter: &FrameCounter,
+    mut query: Query<(&mut Bounds, &mut Velocity, &mut Player)>,
+) {
     for (mut b, mut v, _) in query.iter_mut() {
+        // apply the velocity
         b.0.origin += v.0;
 
-        if b.0.origin.y <= 0 || b.0.origin.y + b.0.size.height > RENDER_RECT.size.height {
-            v.0.y *= -1
+        let above_ceiling = b.0.origin.y <= 0;
+        let below_ground = b.0.origin.y + b.0.size.height > RENDER_RECT.size.height;
+
+        // hitting the ceiling bounces you
+        if above_ceiling {
+            v.0.y *= -1;
+            v.0.y /= 2;
+            b.0.origin.y = 0;
         }
 
-        if !RENDER_RECT.intersects(&b.0) {
-            b.0.origin.x = -b.0.size.width;
+        if below_ground {
+            // hitting the ground stops you from falling
+            b.0.origin.y = RENDER_RECT.size.height - b.0.size.height;
+            v.0.y = 0;
+        }
+
+        let on_ground = b.0.origin.y + b.0.size.height == RENDER_RECT.size.height;
+
+        if on_ground {
+            // being on the ground causes a degredation of lateral movement in
+            // the direction of movement due to friction
+            if frame_counter.0 % 20 == 0 {
+                if v.0.x > 0 {
+                    v.0.x -= 1;
+                } else if v.0.x < 0 {
+                    v.0.x += 1;
+                }
+            }
+        } else if frame_counter.0 % 20 == 0 {
+            // apply gravity to the velocity if not on the ground
+            v.0 += GRAVITY;
+        }
+
+        // screen wrapping
+        if b.0.origin.x > RENDER_RECT.width() {
+            b.0.origin.x -= RENDER_RECT.width() + b.0.size.width;
+        }
+        if b.0.origin.x < -b.0.size.width {
+            b.0.origin.x += RENDER_RECT.width() + b.0.size.width;
         }
     }
 }

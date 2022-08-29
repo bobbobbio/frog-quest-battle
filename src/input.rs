@@ -29,6 +29,7 @@ fn input_from_keyboard_event(e: &web_sys::KeyboardEvent) -> Option<Input> {
         e if e.code() == "ArrowLeft" => Some(Input::Left),
         e if e.code() == "ArrowRight" => Some(Input::Right),
         e if e.code() == "Enter" => Some(Input::Primary),
+        e if e.code() == "Space" => Some(Input::Primary),
         _ => None,
     }
 }

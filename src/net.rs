@@ -24,14 +24,19 @@ fn input(_: In<ggrs::PlayerHandle>, mut input_stream: NonSendMut<InputStream>) -
 
 fn move_sprites(
     inputs: Res<Vec<ggrs::GameInput>>,
-    mut object_query: Query<(&mut graphics::Bounds, &mut game::Velocity, &game::Player)>,
+    frame_counter: Res<game::FrameCounter>,
+    mut object_query: Query<(
+        &mut graphics::Bounds,
+        &mut game::Velocity,
+        &mut game::Player,
+    )>,
 ) {
-    for (_, mut velocity, player) in object_query.iter_mut() {
+    for (_, mut velocity, mut player) in object_query.iter_mut() {
         let input = EnumSet::from_u8(inputs[player.handle as usize].buffer[0]);
-        game::move_player(input, player, &mut velocity);
+        game::move_player(&frame_counter, input, &mut player, &mut velocity);
     }
 
-    game::physics(object_query);
+    game::physics(&frame_counter, object_query);
 }
 
 fn start_matchbox_socket(
