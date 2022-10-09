@@ -166,6 +166,7 @@ pub struct SpriteSheet {
 }
 
 impl SpriteSheet {
+    #[allow(dead_code)]
     pub fn save_to_file(&self, window: &web_sys::Window) -> Result<(), JsValue> {
         let bytes = bincode::serialize(self).unwrap();
         let u8_array = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
@@ -189,6 +190,7 @@ impl SpriteSheet {
         }
     }
 
+    #[allow(dead_code)]
     pub fn insert_sprite(&mut self, tile: TileKey, data: SpriteData) {
         match tile {
             TileKey::Char(c) => self.sprites.insert(c.to_string(), data),

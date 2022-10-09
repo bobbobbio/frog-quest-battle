@@ -10,7 +10,6 @@ use wasm_bindgen::JsCast as _;
 
 mod game;
 mod graphics;
-mod image;
 mod input;
 mod local;
 mod menu;
