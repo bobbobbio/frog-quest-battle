@@ -165,7 +165,20 @@ impl GameStatusTextBox {
 }
 
 pub fn spawn_sprites(mut commands: Commands) {
-    TextBox::spawn(&mut commands, "hello world", (10, 40), PALLET[2]).insert(OnGame);
+    TextBox::spawn(
+        &mut commands,
+        "the quick brown fox jumps over the lazy dog",
+        (10, 40),
+        PALLET[2],
+    )
+    .insert(OnGame);
+    TextBox::spawn(
+        &mut commands,
+        "1234567890!@#$%^&*()-_+={}[]<>,.?/\\`~",
+        (10, 56),
+        PALLET[2],
+    )
+    .insert(OnGame);
     GameStatusTextBox::spawn(&mut commands, (10, 150), PALLET[2]).insert(OnGame);
     FpsCounterTextBox::spawn(&mut commands, (10, 100), PALLET[2]).insert(OnGame);
 }
