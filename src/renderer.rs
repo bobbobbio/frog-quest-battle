@@ -1,6 +1,7 @@
 // copyright 2022 Remi Bernotavicius
 
 use euclid::{Length, Point2D, Rect, Scale, Size2D};
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsCast;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlTexture};
 
@@ -255,14 +256,12 @@ fn set_up_context(context: &WebGl2RenderingContext, texture: &WebGlTexture) {
     set_rectangle(context, 0.0, 0.0, width, height);
 }
 
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize, Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
     pub b: u8,
 }
-
-pub const BLACK: Color = Color { r: 0, g: 0, b: 0 };
 
 /// red, green, blue, and alpha
 const BYTES_PER_PIXEL: Scale<usize, Pixels, Bytes> = Scale::new(4);

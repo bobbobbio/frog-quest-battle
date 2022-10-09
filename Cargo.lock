@@ -1339,6 +1339,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b52c2ef4a78da0ba68fbe1fd920627411096d2ac478f7f4c9f3a54ba6705bade"
 dependencies = [
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -1423,6 +1424,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_ggrs",
+ "bincode",
  "bmp",
  "console_error_panic_hook",
  "enumset",
@@ -1433,6 +1435,7 @@ dependencies = [
  "log",
  "matchbox_socket",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-logger",

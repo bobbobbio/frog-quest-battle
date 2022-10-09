@@ -1,13 +1,15 @@
 // copyright 2022 Remi Bernotavicius
 
-use super::renderer::{CanvasRenderer, Color, Pixels, BLACK, RENDER_RECT};
+use super::renderer::{CanvasRenderer, Color, Pixels, RENDER_RECT};
 use bevy::ecs::system::EntityCommands;
 use bevy::prelude::*;
 use bevy::reflect::impl_reflect_value;
 use bevy_ggrs::*;
 use euclid::{Point2D, Rect, Size2D};
-
-const FONT: &'static [u8] = include_bytes!("../assets/ImprovGOLD-v1.bmp");
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fmt;
+use wasm_bindgen::JsValue;
 
 pub struct PointIterator<T, U> {
     i: Point2D<T, U>,
@@ -106,125 +108,114 @@ impl bevy::app::Plugin for Plugin {
     }
 }
 
-struct Image(bmp::Image);
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PalletColor {
+    Color1,
+    Color2,
+    Color3,
+    Color4,
+}
 
-impl Image {
-    fn from_bytes(bytes: &[u8]) -> Self {
-        let mut r = bytes;
-        Self(bmp::from_reader(&mut r).unwrap())
+#[derive(Serialize, Deserialize)]
+pub struct SpriteData {
+    pub size: Size2D<i32, Pixels>,
+    pub data: Vec<PalletColor>,
+}
+
+impl SpriteData {
+    fn rect(&self) -> Rect<i32, Pixels> {
+        self.size.into()
     }
 
-    fn get_pixel(&self, p: Point2D<i32, Pixels>) -> Color {
-        self.0
-            .get_pixel(p.x.try_into().unwrap(), p.y.try_into().unwrap())
-            .into()
-    }
-
-    fn size(&self) -> Size2D<i32, Pixels> {
-        Size2D::new(
-            self.0.get_width().try_into().unwrap(),
-            self.0.get_height().try_into().unwrap(),
-        )
+    pub fn get_pixel(&self, pos: Point2D<i32, Pixels>) -> PalletColor {
+        assert!(self.rect().contains(pos));
+        self.data[usize::try_from(pos.y * self.size.width + pos.x).unwrap()]
     }
 }
 
-impl From<bmp::Pixel> for Color {
-    fn from(p: bmp::Pixel) -> Self {
-        Self {
-            r: p.r,
-            g: p.g,
-            b: p.b,
+#[derive(Copy, Clone)]
+pub enum TileKey {
+    Char(char),
+    Str(&'static str),
+}
+
+impl From<char> for TileKey {
+    fn from(c: char) -> Self {
+        Self::Char(c)
+    }
+}
+
+impl From<&'static str> for TileKey {
+    fn from(s: &'static str) -> Self {
+        Self::Str(s)
+    }
+}
+
+impl fmt::Display for TileKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Char(c) => write!(f, "{c}"),
+            Self::Str(s) => write!(f, "{s}"),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct TileNumber(u32);
-
-impl TileNumber {
-    pub fn new(value: u32) -> Self {
-        assert!(value < i32::MAX as u32, "invalid TileNumber {}", value);
-        Self(value)
-    }
-
-    fn from_ascii(c: char) -> Self {
-        assert!(c.is_ascii(), "can't display non-ASCII");
-        if c == ' ' {
-            Self::new(259)
-        } else if c >= 'a' && c <= 'z' {
-            Self::new(c as u32 - 'a' as u32)
-        } else if c >= '0' && c <= '9' {
-            Self::new(c as u32 - '0' as u32 + 52)
-        } else {
-            panic!("{} not in tile-set", c);
-        }
-    }
-}
-
-struct Tiles;
-
-struct SpriteSheet {
-    image: Image,
-    tile_size: Size2D<i32, Pixels>,
-    bounds: Rect<i32, Tiles>,
+#[derive(Default, Serialize, Deserialize)]
+pub struct SpriteSheet {
+    sprites: HashMap<String, SpriteData>,
 }
 
 impl SpriteSheet {
-    fn new(image: &'static [u8], tile_size: impl Into<Size2D<i32, Pixels>>) -> Self {
-        let image = Image::from_bytes(image);
-        let image_size = image.size();
-        let tile_size = tile_size.into();
-        let bounds = Rect::new(
-            Point2D::new(0, 0),
-            Size2D::new(
-                (image_size.width / tile_size.width).try_into().unwrap(),
-                (image_size.height / tile_size.height).try_into().unwrap(),
-            ),
-        );
+    pub fn save_to_file(&self, window: &web_sys::Window) -> Result<(), JsValue> {
+        let bytes = bincode::serialize(self).unwrap();
+        let u8_array = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
+        u8_array.copy_from(&bytes);
+        let array = js_sys::Array::new_with_length(1);
+        array.set(0, u8_array.buffer().into());
+        let blob = web_sys::Blob::new_with_buffer_source_sequence_and_options(
+            &array,
+            web_sys::BlobPropertyBag::new().type_("application/octet-stream"),
+        )?;
+        let url = web_sys::Url::create_object_url_with_blob(&blob)?;
+        window.location().set_href(&url)?;
 
-        Self {
-            image,
-            tile_size,
-            bounds,
+        Ok(())
+    }
+
+    fn get_sprite_data(&self, tile: TileKey) -> Option<&SpriteData> {
+        match tile {
+            TileKey::Char(c) => self.sprites.get(&c.to_string()),
+            TileKey::Str(s) => self.sprites.get(s),
         }
     }
 
-    fn tile_start(&self, tile: TileNumber) -> Point2D<i32, Pixels> {
-        let tile_num: i32 = tile.0.try_into().unwrap();
-        let tile_point = Point2D::new(
-            tile_num % self.bounds.size.width,
-            tile_num / self.bounds.size.width,
-        );
-
-        assert!(
-            self.bounds.contains(tile_point),
-            "{:?} is outside the sheet {:?}",
-            tile,
-            &self.bounds
-        );
-
-        Point2D::new(
-            tile_point.x * self.tile_size.width,
-            tile_point.y * self.tile_size.height,
-        )
+    pub fn insert_sprite(&mut self, tile: TileKey, data: SpriteData) {
+        match tile {
+            TileKey::Char(c) => self.sprites.insert(c.to_string(), data),
+            TileKey::Str(s) => self.sprites.insert(s.into(), data),
+        };
     }
 
     fn draw_tile(
         &self,
-        tile: TileNumber,
+        tile: TileKey,
         p: Point2D<i32, Pixels>,
         color: Color,
         renderer: &mut CanvasRenderer,
-    ) {
-        for tile_pixel in self.tile_size.point_iter() {
-            let tile_start = self.tile_start(tile);
+    ) -> Size2D<i32, Pixels> {
+        let data = self
+            .get_sprite_data(tile)
+            .ok_or_else(|| format!("tile key {tile} not found"))
+            .unwrap();
 
-            let pixel = self.image.get_pixel(tile_start + tile_pixel.to_vector());
-
-            if pixel == BLACK {
+        for tile_pixel in data.size.point_iter() {
+            let pixel = data.get_pixel(tile_pixel);
+            if pixel == PalletColor::Color2 {
                 renderer.color_pixel(p + tile_pixel.to_vector(), color);
             }
         }
+
+        data.size
     }
 }
 
@@ -234,15 +225,19 @@ pub struct Assets {
 
 impl Default for Assets {
     fn default() -> Self {
-        Self {
-            font: SpriteSheet::new(FONT, (16, 16)),
-        }
+        let s = Self {
+            font: bincode::deserialize(include_bytes!("../assets/font.bin")).unwrap(),
+        };
+        let mut keys = s.font.sprites.keys().cloned().collect::<Vec<String>>();
+        keys.sort();
+        log::info!("loaded font with keys: {keys:?}",);
+        s
     }
 }
 
 #[derive(Component)]
 pub struct SimpleSprite {
-    pub tile: TileNumber,
+    pub tile: TileKey,
     pub color: Color,
 }
 
@@ -284,11 +279,10 @@ impl TextBox {
 
 impl Sprite for TextBox {
     fn draw(&self, bounds: &Bounds, assets: &Assets, renderer: &mut CanvasRenderer) {
-        for (i, c) in self.text.chars().enumerate() {
-            let tile = TileNumber::from_ascii(c.to_ascii_lowercase());
-            let mut p = bounds.0.origin.clone();
-            p.x += assets.font.tile_size.width * i as i32 / 2;
-            assets.font.draw_tile(tile, p, self.color, renderer);
+        let mut p = bounds.0.origin.clone();
+        for c in self.text.chars() {
+            let size = assets.font.draw_tile(c.into(), p, self.color, renderer);
+            p.x += size.width;
         }
     }
 }

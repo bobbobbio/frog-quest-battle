@@ -3,7 +3,7 @@
 use super::{despawn_screen, graphics, input, renderer, AppState};
 use bevy::prelude::*;
 use euclid::{Point2D, Rect, Size2D};
-use graphics::{Bounds, SimpleSprite, TextBox, TileNumber, PALLET};
+use graphics::{Bounds, SimpleSprite, TextBox, PALLET};
 use input::{Input, InputStream};
 use renderer::Pixels;
 use std::iter;
@@ -85,7 +85,7 @@ impl Menu {
         let marker = commands
             .spawn()
             .insert(SimpleSprite {
-                tile: TileNumber::new(97),
+                tile: '>'.into(),
                 color: PALLET[3],
             })
             .insert(Bounds(Rect::new(menu_pos, Size2D::new(10, 10))))
